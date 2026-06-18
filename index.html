@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestione Argomenti Esame</title>
+    <!-- Tailwind CSS per il layout responsive e moderno -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- html2pdf per esportazione -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <style>
+        /* Personalizzazioni Tailwind minime per la stampa */
+        @media print {
+            body { background-color: white !important; }
+            .no-print { display: none !important; }
+            #lista-section { box-shadow: none !important; margin: 0 !important; padding: 0 !important; width: 100% !important; max-width: 100% !important;}
+            .alunno-card { break-inside: avoid; border: 1px solid #e5e7eb !important; background-color: white !important;}
+        }
+        
+        /* Animazioni base */
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Stile personalizzato per gli input */
+        .input-modern {
+            @apply w-full px-4 py-3 rounded-lg border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 outline-none text-slate-700 shadow-sm;
+        }
+        
+        /* Stile bottoni */
+        .btn-primary {
+            @apply w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition-colors duration-200 shadow-md hover:shadow-lg active:scale-[0.98];
+        }
+        .btn-secondary {
+            @apply flex items-center justify-center gap-2 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 font-medium py-2 px-4 rounded-lg transition-colors duration-200;
+        }
+        .btn-export {
+            @apply flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-900 text-white font-medium py-3 px-6 rounded-lg transition-colors duration-200 shadow-md w-full sm:w-auto mt-6 mx-auto;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-800 font-sans antialiased p-4 sm:p-6 lg:p-8 flex flex-col items-center">
+
+    <!-- Intestazione -->
+    <header class="w-full max-w-4xl flex items-center justify-between mb-8">
+        <div>
+            <h1 class="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">IPSSAT Rocco Chinnici Nicolosi</h1>
+            <p class="text-slate-500 mt-1 text-sm sm:text-base">Gestione Argomenti Esame - Database Centralizzato</p>
+        </div>
+        <i class="ph ph-student text-4xl text-blue-600 hidden sm:block"></i>
+    </header>
+
+    <!-- MAIN CONTAINER (Accesso + Inserimento) -->
+    <main class="w-full max-w-4xl grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        
+        <!-- Colonna Sinistra / Superiore (Login & Form) -->
+        <div class="lg:col-span-5 w-full flex flex-col gap-6">
+            
+            <!-- SEZIONE ACCESSO -->
+            <div id="login-section" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 sm:p-8 fade-in w-full">
+                <div class="flex items-center gap-3 mb-6">
+                    <div class="bg-blue-100 p-3 rounded-full text-blue-600">
+                        <i class="ph ph-lock-key text-xl"></i>
+                    </div>
+                    <h2 class="text-xl font-bold text-slate-800">Accesso Riservato</h2>
+                </div>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label for="passcode" class="block text-sm font-semibold text-slate-600 mb-2">Codice di Sblocco</label>
+                        <input type="password" id="passcode" class="input-modern border-2 border-slate-400 bg-slate-200 text-slate-900 font-bold text-lg tracking-widest placeholder:tracking-normal placeholder:font-normal placeholder:text-base focus:border-blue-600 focus:bg-white" placeholder="Inserisci il codice segreto">
+                    </div>
+                    <button onclick="verificaCodice()" class="btn-primary mt-2">
+                        <i class="ph ph-sign-in"></i> Accedi al Sistema
+                    </button>
+                    <div id="login-status" class="text-center text-sm font-medium h-5 mt-2 transition-colors"></div>
+                </div>
+            </div>
+
+            <!-- SEZIONE INSERIMENTO (Inizialmente nascosta) -->
+            <div id="app-section" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 sm:p-8 hidden fade-in w-full relative">
+                
+                <!-- Alert Modifica -->
+                <div id="annullaModificaContainer" class="hidden mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex justify-between items-center fade-in">
+                    <span class="text-amber-800 text-sm font-medium flex items-center gap-2">
+                        <i class="ph ph-warning-circle text-lg"></i> Modalità Modifica
+                    </span>
+                    <button onclick="annullaModifica()" class="text-amber-700 hover:text-amber-900 text-sm font-bold underline">Annulla</button>
+                </div>
+
+                <div class="flex items-center gap-3 mb-6">
+                    <div class="bg-blue-100 p-3 rounded-full text-blue-600" id="icona-form">
+                        <i class="ph ph-file-text text-xl"></i>
+                    </div>
+                    <h2 class="text-xl font-bold text-slate-800" id="titolo-form">Nuova Scheda Alunno</h2>
+                </div>
+
+                <div class="space-y-5">
+                    <div>
+                        <label for="nomeAlunno" class="block text-sm font-semibold text-slate-600 mb-2">Nominativo Completo</label>
+                        <input type="text" id="nomeAlunno" class="input-modern" placeholder="Es. Mario Rossi">
+                    </div>
+
+                    <div class="border-t border-slate-100 pt-5">
+                        <label class="block text-sm font-semibold text-slate-600 mb-3 flex justify-between items-center">
+                            <span>Elenco Argomenti</span>
+                            <span class="text-xs font-normal text-slate-400">Ordine libero</span>
+                        </label>
+                        
+                        <div id="contenitore-argomenti" class="space-y-3">
+                            <div class="relative flex items-center">
+                                <span class="absolute left-4 text-slate-400 font-medium text-sm">1.</span>
+                                <input type="text" class="argomento-input input-modern pl-10" placeholder="Inserisci il primo argomento">
+                            </div>
+                        </div>
+
+                        <button type="button" id="aggiungiCampo" class="btn-secondary w-full mt-4">
+                            <i class="ph ph-plus-circle text-lg"></i> Aggiungi ulteriore argomento
+                        </button>
+                    </div>
+
+                    <button id="salvaDati" class="btn-primary mt-6">
+                        <i class="ph ph-floppy-disk text-lg" id="icona-salva"></i> <span id="testo-salva">Salva nel Database</span>
+                    </button>
+                    <div id="save-status" class="text-center text-sm font-medium h-5 mt-2 transition-colors"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Colonna Destra / Inferiore (Lista in tempo reale - Inizialmente nascosta) -->
+        <div id="lista-section" class="lg:col-span-7 bg-white rounded-2xl shadow-sm border border-slate-200 p-6 sm:p-8 hidden fade-in w-full h-full min-h-[500px] flex-col">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 border-b border-slate-100 pb-4">
+                <div class="flex items-center gap-3">
+                    <div class="bg-emerald-100 p-3 rounded-full text-emerald-600">
+                        <i class="ph ph-users text-xl"></i>
+                    </div>
+                    <h2 class="text-xl font-bold text-slate-800">Database Classe</h2>
+                </div>
+                <span class="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider" id="contatore-alunni">0 Registrati</span>
+            </div>
+
+            <div id="elenco-alunni" class="flex-1 space-y-4 overflow-y-auto pr-2 custom-scrollbar">
+                <!-- Skeleton loader in attesa dei dati -->
+                <div class="animate-pulse flex space-x-4">
+                    <div class="flex-1 space-y-4 py-1">
+                        <div class="h-4 bg-slate-200 rounded w-3/4"></div>
+                        <div class="space-y-2">
+                            <div class="h-4 bg-slate-200 rounded"></div>
+                            <div class="h-4 bg-slate-200 rounded w-5/6"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <button id="esportaPdf" class="btn-export no-print">
+                <i class="ph ph-file-pdf text-xl"></i> Esporta Database in PDF
+            </button>
+        </div>
+    </main>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+    import { getFirestore, doc, setDoc, collection, query, onSnapshot, orderBy } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+
+    // Configurazione fornita
+    const firebaseConfig = {
+        apiKey: "AIzaSyDfe7yeS630OuZ5OnT3GPRyWWIh__aZkMA",
+        authDomain: "argomenti-esami.firebaseapp.com",
+        projectId: "argomenti-esami",
+        storageBucket: "argomenti-esami.firebasestorage.app",
+        messagingSenderId: "347888040648",
+        appId: "1:347888040648:web:5f8c6e2dc6245ce06c03fd"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    const codiceSegreto = "12345"; 
+    const chiaveScrittura = "ChiaveRoccoChinnici2026"; 
+
+    // Variabile globale per immagazzinare i dati caricati in tempo reale (serve per la modifica)
+    window.alunniData = {};
+
+    // Gestione UI e messaggi
+    const setStatus = (elementId, message, isError = false) => {
+        const el = document.getElementById(elementId);
+        el.innerText = message;
+        el.className = `text-center text-sm font-medium h-5 mt-2 transition-colors ${isError ? 'text-red-500' : 'text-emerald-600'}`;
+        setTimeout(() => { el.innerText = ''; }, 4000); // Auto pulizia messaggio
+    };
+
+    // Gestione campi dinamici
+    const contenitoreArgomenti = document.getElementById("contenitore-argomenti");
+    document.getElementById("aggiungiCampo").addEventListener("click", () => {
+        const numeroCampi = contenitoreArgomenti.querySelectorAll(".argomento-input").length + 1;
+        
+        const wrapper = document.createElement("div");
+        wrapper.className = "relative flex items-center mt-3 fade-in";
+        
+        wrapper.innerHTML = `
+            <span class="absolute left-4 text-slate-400 font-medium text-sm">${numeroCampi}.</span>
+            <input type="text" class="argomento-input input-modern pl-10" placeholder="Inserisci argomento">
+        `;
+        contenitoreArgomenti.appendChild(wrapper);
+    });
+
+    function resetCampiArgomenti() {
+        contenitoreArgomenti.innerHTML = `
+            <div class="relative flex items-center">
+                <span class="absolute left-4 text-slate-400 font-medium text-sm">1.</span>
+                <input type="text" class="argomento-input input-modern pl-10" placeholder="Inserisci il primo argomento">
+            </div>
+        `;
+    }
+
+    // Accesso
+    window.verificaCodice = function() {
+        const input = document.getElementById("passcode").value;
+        if (input === codiceSegreto) {
+            document.getElementById("login-section").style.display = "none";
+            document.getElementById("app-section").classList.remove("hidden");
+            document.getElementById("lista-section").classList.remove("hidden");
+            attivaAscoltoRealTime(); 
+        } else {
+            setStatus("login-status", "Codice di sblocco non valido.", true);
+        }
+    }
+
+    document.getElementById("passcode").addEventListener("keypress", function(event) {
+        if (event.key === "Enter") {
+            event.preventDefault();
+            verificaCodice();
+        }
+    });
+
+    // Funzione Modifica e Annulla
+    window.avviaModifica = function(docId) {
+        const dati = window.alunniData[docId];
+        if(!dati) return;
+
+        // Visualizza il modulo di modifica
+        document.getElementById("annullaModificaContainer").classList.remove("hidden");
+        document.getElementById("titolo-form").innerText = "Modifica Scheda";
+        document.getElementById("icona-form").innerHTML = `<i class="ph ph-pencil-simple text-xl"></i>`;
+        document.getElementById("icona-form").classList.replace("bg-blue-100", "bg-amber-100");
+        document.getElementById("icona-form").classList.replace("text-blue-600", "text-amber-600");
+        document.getElementById("testo-salva").innerText = "Aggiorna Database";
+        
+        // Popola i dati bloccando il nome (per evitare duplicati dovuti al cambio di ID documento)
+        const inputNome = document.getElementById("nomeAlunno");
+        inputNome.value = dati.nominativo;
+        inputNome.readOnly = true;
+        inputNome.classList.add("bg-slate-200", "text-slate-500", "cursor-not-allowed");
+
+        // Rigenera i campi degli argomenti esistenti
+        contenitoreArgomenti.innerHTML = "";
+        dati.argomenti.forEach((arg, index) => {
+            const wrapper = document.createElement("div");
+            wrapper.className = "relative flex items-center mt-3 fade-in";
+            // Previene problemi di escape degli apici negli argomenti
+            const input = document.createElement("input");
+            input.type = "text";
+            input.className = "argomento-input input-modern pl-10";
+            input.value = arg;
+            
+            const span = document.createElement("span");
+            span.className = "absolute left-4 text-slate-400 font-medium text-sm";
+            span.innerText = `${index + 1}.`;
+            
+            wrapper.appendChild(span);
+            wrapper.appendChild(input);
+            contenitoreArgomenti.appendChild(wrapper);
+        });
+
+        // Scroll rapido al form
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    window.annullaModifica = function() {
+        document.getElementById("annullaModificaContainer").classList.add("hidden");
+        document.getElementById("titolo-form").innerText = "Nuova Scheda Alunno";
+        document.getElementById("icona-form").innerHTML = `<i class="ph ph-file-text text-xl"></i>`;
+        document.getElementById("icona-form").classList.replace("bg-amber-100", "bg-blue-100");
+        document.getElementById("icona-form").classList.replace("text-amber-600", "text-blue-600");
+        document.getElementById("testo-salva").innerText = "Salva nel Database";
+
+        const inputNome = document.getElementById("nomeAlunno");
+        inputNome.value = "";
+        inputNome.readOnly = false;
+        inputNome.classList.remove("bg-slate-200", "text-slate-500", "cursor-not-allowed");
+        
+        resetCampiArgomenti();
+    };
+
+    // Realtime Database Firestore
+    function attivaAscoltoRealTime() {
+        const q = query(collection(db, "alunni"), orderBy("data", "desc"));
+        
+        onSnapshot(q, (querySnapshot) => {
+            const elencoDiv = document.getElementById("elenco-alunni");
+            document.getElementById("contatore-alunni").innerText = `${querySnapshot.size} Registrati`;
+            elencoDiv.innerHTML = ""; 
+            window.alunniData = {}; // Reset della variabile globale
+
+            if (querySnapshot.empty) {
+                elencoDiv.innerHTML = `
+                    <div class="text-center py-10 bg-slate-50 rounded-xl border border-dashed border-slate-300">
+                        <i class="ph ph-folder-open text-4xl text-slate-400 mb-2"></i>
+                        <p class="text-slate-500 font-medium">Nessuna scheda presente nel database.</p>
+                        <p class="text-slate-400 text-sm mt-1">Utilizza il modulo per inserire il primo alunno.</p>
+                    </div>`;
+                return;
+            }
+
+            querySnapshot.forEach((doc) => {
+                const dati = doc.data();
+                window.alunniData[doc.id] = dati; // Salva i dati per la funzione di modifica
+
+                const dataInserimento = new Date(dati.data).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' });
+                
+                let htmlArgomenti = '';
+                dati.argomenti.forEach((arg, index) => {
+                    htmlArgomenti += `
+                        <li class="flex items-start gap-2 text-slate-600 text-sm">
+                            <span class="text-blue-500 font-bold min-w-[1.2rem]">${index + 1}.</span>
+                            <span class="leading-tight pt-[2px]">${arg}</span>
+                        </li>`;
+                });
+
+                const cardHtml = `
+                    <div class="alunno-card bg-slate-50 p-5 rounded-xl border border-slate-200 hover:border-blue-300 hover:shadow-md transition-all duration-200">
+                        <div class="flex justify-between items-start mb-3">
+                            <h3 class="font-bold text-slate-800 text-lg flex items-center gap-2">
+                                <i class="ph ph-user-circle text-blue-500"></i> ${dati.nominativo}
+                            </h3>
+                            <div class="flex items-center gap-2 no-print">
+                                <span class="text-xs font-medium text-slate-400 bg-white px-2 py-1 rounded-md border border-slate-200">
+                                    ${dataInserimento}
+                                </span>
+                                <button onclick="avviaModifica('${doc.id}')" class="bg-white border border-blue-200 text-blue-600 hover:bg-blue-50 p-1.5 rounded-md shadow-sm transition-colors" title="Modifica Argomenti">
+                                    <i class="ph ph-pencil-simple text-base"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <ul class="space-y-2 mt-2">
+                            ${htmlArgomenti}
+                        </ul>
+                    </div>
+                `;
+                elencoDiv.insertAdjacentHTML('beforeend', cardHtml);
+            });
+        }, (error) => {
+            console.error("Errore Realtime:", error);
+            elencoDiv.innerHTML = `<p class="text-red-500 text-center font-medium p-4 bg-red-50 rounded-lg border border-red-200">Connessione al database interrotta.</p>`;
+        });
+    }
+
+    // Esportazione PDF
+    document.getElementById("esportaPdf").addEventListener("click", () => {
+        const elementoDaEsportare = document.getElementById("lista-section");
+        const bottonePdf = document.getElementById("esportaPdf");
+        
+        bottonePdf.style.display = "none";
+        
+        const originalMaxHeight = elementoDaEsportare.style.maxHeight;
+        const originalOverflow = elementoDaEsportare.style.overflowY;
+        document.getElementById("elenco-alunni").style.overflowY = 'visible';
+
+        const opzioni = {
+            margin:       15,
+            filename:     'argomenti_esame_classe.pdf',
+            image:        { type: 'jpeg', quality: 0.98 },
+            html2canvas:  { scale: 2, useCORS: true, logging: false },
+            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+
+        html2pdf().set(opzioni).from(elementoDaEsportare).save().then(() => {
+            bottonePdf.style.display = "flex"; 
+            document.getElementById("elenco-alunni").style.overflowY = 'auto'; 
+        });
+    });
+
+    // Salvataggio / Aggiornamento Dati
+    document.getElementById("salvaDati").addEventListener("click", async () => {
+        const nomeAlunno = document.getElementById("nomeAlunno").value.trim();
+        const btnSalva = document.getElementById("salvaDati");
+        
+        if (!nomeAlunno) {
+            setStatus("save-status", "Il nominativo è obbligatorio.", true);
+            return;
+        }
+
+        const inputs = document.querySelectorAll(".argomento-input");
+        const argomenti = [];
+        inputs.forEach(input => {
+            if (input.value.trim() !== "") {
+                argomenti.push(input.value.trim());
+            }
+        });
+
+        if (argomenti.length === 0) {
+            setStatus("save-status", "Compila almeno un argomento.", true);
+            return;
+        }
+
+        const docId = nomeAlunno.toLowerCase().replace(/\s+/g, '_');
+
+        try {
+            btnSalva.innerHTML = `<i class="ph ph-spinner animate-spin text-lg"></i> Salvataggio...`;
+            btnSalva.disabled = true;
+            btnSalva.classList.add("opacity-70");
+
+            await setDoc(doc(db, "alunni", docId), {
+                nominativo: nomeAlunno,
+                argomenti: argomenti,
+                chiaveScrittura: chiaveScrittura, 
+                // Evitiamo di sovrascrivere la data originale se stiamo aggiornando
+                data: window.alunniData[docId] ? window.alunniData[docId].data : new Date().toISOString()
+            });
+
+            setStatus("save-status", "Scheda salvata nel database.");
+            
+            // Ripristino totale dell'interfaccia dopo il salvataggio
+            annullaModifica();
+
+        } catch (error) {
+            console.error("Errore di scrittura su Firebase:", error);
+            setStatus("save-status", "Errore server. Database protetto.", true);
+        } finally {
+            // Assicuriamoci che il pulsante torni attivo se annullaModifica non l'ha già fatto
+            if (document.getElementById("annullaModificaContainer").classList.contains("hidden")) {
+                 btnSalva.innerHTML = `<i class="ph ph-floppy-disk text-lg" id="icona-salva"></i> <span id="testo-salva">Salva nel Database</span>`;
+            }
+            btnSalva.disabled = false;
+            btnSalva.classList.remove("opacity-70");
+        }
+    });
+</script>
+
+<style>
+/* Custom scrollbar per la lista alunni */
+.custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: #f1f5f9; 
+    border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #cbd5e1; 
+    border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8; 
+}
+</style>
+</body>
+</html>
